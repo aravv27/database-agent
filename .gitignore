@@ -1,0 +1,31 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Environments
+.env
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Workspace Databases (ignore all generated projects)
+databases/
+test.db
+schema_cache.json
+
+# Visualization Artifacts
+schema_graph.html
+
+# IDE / Editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
