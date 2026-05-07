@@ -73,6 +73,13 @@ class BaseAgent(ABC):
     max_tokens: int = 800
     needs_context: bool = True   # Set False for agents that don't need retrieval (e.g. schema design)
 
+    def get_system_prompt(self, context: dict) -> str:
+        """
+        Return the system prompt. Override to select prompt based on context
+        (e.g., switching between SQLite and PostgreSQL prompts by dialect).
+        """
+        return self.system_prompt
+
 
     def format_context(self, context: dict) -> str:
         """
@@ -154,7 +161,7 @@ class BaseAgent(ABC):
             response = client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": self.system_prompt},
+                    {"role": "system", "content": self.get_system_prompt(context)},
                     {"role": "user", "content": user_prompt},
                 ],
                 temperature=self.temperature,

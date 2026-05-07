@@ -1,16 +1,18 @@
 """
 workspace.py — Multi-database workspace manager.
 
-Manages multiple SQLite database projects under the databases/ folder.
+Manages multiple database projects (SQLite and PostgreSQL) under the databases/ folder.
 Each project has its own engine, graph, cache, descriptions, and embeddings.
 
 Structure:
   databases/
     {name}/
-      db.sqlite
+      project.json         # {"dialect": "sqlite"} or {"dialect": "postgresql"}
+      db.sqlite            # SQLite only
       schema_cache.json
 """
 
+import json
 import os
 import shutil
 import time
@@ -31,7 +33,7 @@ from cache import (
     decode_embedding,
 )
 from context_engine import generate_all_descriptions
-from retrieval import embed_text
+from retrieval import embed_text, HybridRetriever
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATABASES_DIR = os.path.join(ROOT, "databases")
@@ -43,14 +45,35 @@ DATABASES_DIR = os.path.join(ROOT, "databases")
 class DatabaseProject:
     """All runtime state for one database project."""
     name: str
-    db_path: str
+    db_path: str            # SQLite: file path. Postgres: full connection URL
     cache_path: str
+    dialect: str            # "sqlite" or "postgresql"
     engine: object          # SQLAlchemy Engine
     graph: nx.DiGraph
     descriptions: dict      # {table_name: {description, business_role}}
     embeddings: dict        # {table_name: np.array}
     hashes: dict            # {table_name: sha256_hex}
+    retriever: object = None  # HybridRetriever (BM25 + embedding)
     table_count: int = 0
+
+
+# ── Project config helpers ─────────────────────────────────────────────────
+
+def _read_project_config(project_dir: str) -> dict:
+    """Read project.json from a project folder. Returns defaults if missing."""
+    config_path = os.path.join(project_dir, "project.json")
+    if os.path.exists(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    # Legacy project — no config file means SQLite
+    return {"dialect": "sqlite"}
+
+
+def _write_project_config(project_dir: str, dialect: str):
+    """Write project.json to a project folder."""
+    config_path = os.path.join(project_dir, "project.json")
+    with open(config_path, "w", encoding="utf-8") as f:
+        json.dump({"dialect": dialect}, f, indent=2)
 
 
 # ── FK pragma ──────────────────────────────────────────────────────────────
@@ -61,17 +84,26 @@ def _enable_fk_support(dbapi_conn, connection_record):
     cursor.close()
 
 
-def make_engine(db_path: str):
-    """Create a SQLAlchemy engine with FK support enabled."""
-    engine = create_engine(f"sqlite:///{db_path}", echo=False)
-    event.listen(engine, "connect", _enable_fk_support)
+def make_engine(db_path: str, dialect: str = "sqlite"):
+    """
+    Create a SQLAlchemy engine.
+
+    For SQLite: db_path is a file path, engine gets FK pragma listener.
+    For PostgreSQL: db_path is the full connection URL, FKs enforced natively.
+    """
+    if dialect == "postgresql":
+        engine = create_engine(db_path, echo=False)
+    else:
+        engine = create_engine(f"sqlite:///{db_path}", echo=False)
+        event.listen(engine, "connect", _enable_fk_support)
     return engine
 
 
 # ── Pipeline ───────────────────────────────────────────────────────────────
 
 def _run_pipeline(name: str, db_path: str, cache_path: str,
-                  engine=None, silent: bool = False) -> DatabaseProject:
+                  dialect: str = "sqlite", engine=None,
+                  silent: bool = False) -> DatabaseProject:
     """
     Full startup pipeline for a database:
       reflect → hash → cache compare → describe stale → embed stale → save cache
@@ -80,7 +112,7 @@ def _run_pipeline(name: str, db_path: str, cache_path: str,
     t0 = time.time()
 
     if engine is None:
-        engine = make_engine(db_path)
+        engine = make_engine(db_path, dialect)
 
     # Graph
     if not silent:
@@ -127,6 +159,9 @@ def _run_pipeline(name: str, db_path: str, cache_path: str,
             cols = ", ".join(c["name"] for c in graph.nodes[t]["columns"])
             embeddings[t] = embed_text(f"{t}: {desc_text}. Columns: {cols}")
 
+    # Build hybrid retriever (BM25 + embedding, instantaneous to build)
+    retriever = HybridRetriever(graph, descriptions, embeddings)
+
     # Save cache
     save_cache(
         {
@@ -147,11 +182,13 @@ def _run_pipeline(name: str, db_path: str, cache_path: str,
         name=name,
         db_path=db_path,
         cache_path=cache_path,
+        dialect=dialect,
         engine=engine,
         graph=graph,
         descriptions=descriptions,
         embeddings=embeddings,
         hashes=current_hashes,
+        retriever=retriever,
         table_count=len(graph.nodes),
     )
 
@@ -182,7 +219,8 @@ class Workspace:
         for entry in sorted(os.scandir(DATABASES_DIR), key=lambda e: e.name):
             if entry.is_dir():
                 db_file = os.path.join(entry.path, "db.sqlite")
-                if os.path.exists(db_file):
+                config_file = os.path.join(entry.path, "project.json")
+                if os.path.exists(db_file) or os.path.exists(config_file):
                     names.append(entry.name)
         return names
 
@@ -190,36 +228,103 @@ class Workspace:
         return os.path.join(DATABASES_DIR, name)
 
     def db_path(self, name: str) -> str:
+        """Return the SQLite file path for a project."""
         return os.path.join(self.project_dir(name), "db.sqlite")
 
     def cache_path(self, name: str) -> str:
         return os.path.join(self.project_dir(name), "schema_cache.json")
 
+    def get_dialect(self, name: str) -> str:
+        """Get the dialect for a project by reading its config."""
+        config = _read_project_config(self.project_dir(name))
+        return config.get("dialect", "sqlite")
+
+    def connection_string(self, name: str) -> str:
+        """
+        Get the connection string / path for a project.
+
+        SQLite: returns the local file path (e.g., databases/ecommerce/db.sqlite)
+        PostgreSQL: returns the full URL (e.g., postgresql://user:pass@host:5432/name)
+        """
+        dialect = self.get_dialect(name)
+        if dialect == "postgresql":
+            from dotenv import load_dotenv
+            load_dotenv()
+            postgres_url = os.getenv("POSTGRES_URL", "")
+            if not postgres_url:
+                raise ValueError("POSTGRES_URL not set in .env")
+            return f"{postgres_url}/{name}"
+        return self.db_path(name)
+
     def exists(self, name: str) -> bool:
-        return os.path.exists(self.db_path(name))
+        """Check if a project exists (has either db.sqlite or project.json)."""
+        proj_dir = self.project_dir(name)
+        if not os.path.isdir(proj_dir):
+            return False
+        return (
+            os.path.exists(os.path.join(proj_dir, "db.sqlite"))
+            or os.path.exists(os.path.join(proj_dir, "project.json"))
+        )
 
     # ── Create ──
 
-    def create_empty(self, name: str) -> str:
-        """Create an empty database project folder + sqlite file. Returns db_path."""
+    def create_empty(self, name: str, dialect: str = "sqlite") -> str:
+        """
+        Create a new database project.
+
+        For SQLite: creates a local db.sqlite file.
+        For PostgreSQL: creates a database on the configured server.
+        Returns the connection string / path.
+        """
         proj_dir = self.project_dir(name)
         os.makedirs(proj_dir, exist_ok=True)
+
+        if dialect == "postgresql":
+            from dotenv import load_dotenv
+            load_dotenv()
+            postgres_url = os.getenv("POSTGRES_URL", "")
+            if not postgres_url:
+                raise ValueError("POSTGRES_URL not set in .env")
+
+            # Connect to the default 'postgres' database to create the new one
+            base_engine = create_engine(
+                f"{postgres_url}/postgres", echo=False,
+                isolation_level="AUTOCOMMIT",
+            )
+            with base_engine.connect() as conn:
+                from sqlalchemy import text as _text
+                result = conn.execute(
+                    _text("SELECT 1 FROM pg_database WHERE datname = :dbname"),
+                    {"dbname": name},
+                )
+                if not result.fetchone():
+                    # Database names are identifiers — use quotes for safety
+                    conn.execute(_text(f'CREATE DATABASE "{name}"'))
+            base_engine.dispose()
+
+            _write_project_config(proj_dir, "postgresql")
+            conn_str = f"{postgres_url}/{name}"
+            print(f"  Created PostgreSQL database: {name}")
+            return conn_str
+
+        # SQLite (default)
         db_file = self.db_path(name)
-        # Must actually connect to force SQLite to create the file on disk
-        engine = make_engine(db_file)
+        engine = make_engine(db_file, "sqlite")
         with engine.connect() as conn:
             from sqlalchemy import text as _text
             conn.execute(_text("SELECT 1"))
         engine.dispose()
+        _write_project_config(proj_dir, "sqlite")
         print(f"  Created empty database: databases/{name}/db.sqlite")
         return db_file
-
 
     def get_engine_for(self, name: str):
         """Get (or create) an engine for an existing or just-created DB."""
         if name in self._projects:
             return self._projects[name].engine
-        return make_engine(self.db_path(name))
+        dialect = self.get_dialect(name)
+        conn_str = self.connection_string(name)
+        return make_engine(conn_str, dialect)
 
     # ── Load ──
 
@@ -227,10 +332,13 @@ class Workspace:
         """Run the full pipeline for a database and store it."""
         if not self.exists(name):
             raise ValueError(f"No database named '{name}'. Use 'create {name}' first.")
+        dialect = self.get_dialect(name)
+        conn_str = self.connection_string(name)
         project = _run_pipeline(
             name=name,
-            db_path=self.db_path(name),
+            db_path=conn_str,
             cache_path=self.cache_path(name),
+            dialect=dialect,
             engine=engine,
             silent=silent,
         )
@@ -292,6 +400,9 @@ class Workspace:
         for t in list(project.embeddings):
             if t not in new_graph.nodes:
                 del project.embeddings[t]
+
+        # Rebuild hybrid retriever with updated data
+        project.retriever = HybridRetriever(new_graph, project.descriptions, project.embeddings)
 
         # Update project state
         project.graph = new_graph

@@ -1,5 +1,5 @@
 """
-tools/sql_executor.py — Executes SQL queries against the SQLite database.
+tools/sql_executor.py — Executes SQL queries against the active database.
 
 User is shown the query and must confirm before execution.
 Results are formatted as a readable table in the terminal.
@@ -23,12 +23,12 @@ def is_schema_change(sql: str) -> bool:
 
 class SQLExecutorTool(BaseTool):
     """
-    Executes a SQL query against the connected SQLite database.
+    Executes a SQL query against the connected database.
     Shows the query to the user for confirmation before running.
     """
 
     name = "sql_executor"
-    description = "Execute a SQL query against the SQLite database and display results"
+    description = "Execute a SQL query against the database and display results"
     requires_confirmation = True
 
     def __init__(self, engine):

@@ -1,18 +1,27 @@
 """
-retrieval.py — Two-phase retrieval: semantic seeding + graph expansion.
+retrieval.py — Two-phase retrieval: hybrid semantic/lexical seeding + graph expansion.
 
-Phase 1: Embed table descriptions with sentence-transformers, cosine-sim
-          against user query to find seed tables.
-Phase 2: Walk the NetworkX graph from seeds to assemble a full context
-          package with join paths, auth linkage, and pattern hints.
+Phase 1: HybridRetriever
+  - BM25 (sparse lexical): exact column/table name matching
+  - Sentence-transformer embeddings (dense semantic): meaning-based matching
+  - Reciprocal Rank Fusion (RRF, k=60): merges both ranked lists
+  - Adaptive K: auto-selects seed count from score distribution + schema size
+
+Phase 2: Graph expansion
+  - Walk the NetworkX graph from seeds to assemble a full context package
+    with join paths, auth linkage, and pattern hints.
 """
 
+import math
 import numpy as np
+from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
+
 
 # ── Embedding model (loaded once) ──────────────────────────────────────────
 
 _model = None
+
 
 def _get_model():
     global _model
@@ -44,27 +53,129 @@ def embed_tables(graph, descriptions):
     return embeddings
 
 
-# ── Semantic seeding (Phase 1) ─────────────────────────────────────────────
+# ── Utilities ───────────────────────────────────────────────────────────────
 
 def cosine_sim(a, b):
-    """Cosine similarity between two vectors."""
+    """Cosine similarity between two numpy vectors."""
     dot = np.dot(a, b)
     norm = np.linalg.norm(a) * np.linalg.norm(b)
     return float(dot / norm) if norm > 0 else 0.0
 
 
-def find_seeds(query, embeddings, top_k=2):
+def build_bm25_doc(table_name: str, description: str, columns: list) -> str:
     """
-    Embed the query and return the top-K most similar table names.
-    Returns list of (table_name, similarity_score).
+    Construct a BM25-optimized document for one table.
+    Table name and column names are repeated 2x to boost their term frequency,
+    so exact-match queries like 'user_id' or 'orders' surface the right table.
     """
-    query_vec = embed_text(query)
-    scores = []
-    for table_name, table_vec in embeddings.items():
-        sim = cosine_sim(query_vec, table_vec)
-        scores.append((table_name, sim))
-    scores.sort(key=lambda x: x[1], reverse=True)
-    return scores[:top_k]
+    col_names = " ".join(c["name"] for c in columns)
+    return f"{table_name} {table_name} {description} {col_names} {col_names}"
+
+
+# ── Adaptive K ──────────────────────────────────────────────────────────────
+
+def compute_adaptive_k(table_count: int, scores: list, gap_threshold: float = 0.10) -> int:
+    """
+    Determine the optimal number of seed tables (K) using two signals:
+      1. Schema-scaled ceiling: max_k = clamp(log2(table_count), 2, 6)
+      2. Score-gap detection: stop adding seeds when the drop from the
+         previous score exceeds gap_threshold.
+
+    Args:
+        table_count:    Total number of tables in the schema.
+        scores:         Sorted list of (table_name, score) tuples, descending.
+        gap_threshold:  Score drop that signals a natural cut point.
+
+    Returns:
+        K (int), always in [1, max_k].
+
+    Schema-to-max_k mapping (approximate):
+        20  tables → max_k = 4
+        50  tables → max_k = 5
+        100 tables → max_k = 6
+        200 tables → max_k = 6  (capped)
+    """
+    max_k = max(2, min(6, round(math.log2(max(table_count, 2)))))
+    min_k = 1
+
+    if len(scores) <= min_k:
+        return min_k
+
+    k = min_k
+    for i in range(min_k, min(max_k, len(scores))):
+        gap = scores[i - 1][1] - scores[i][1]
+        if gap > gap_threshold:
+            break
+        k += 1
+
+    return k
+
+
+# ── Hybrid Retriever ────────────────────────────────────────────────────────
+
+class HybridRetriever:
+    """
+    Combines BM25 lexical ranking and dense embedding ranking via
+    Reciprocal Rank Fusion (RRF). Selects seed count adaptively.
+
+    Build once per DatabaseProject, rebuild on schema refresh.
+    """
+
+    def __init__(self, graph, descriptions: dict, embeddings: dict):
+        self.table_names = sorted(embeddings.keys())
+        self.embeddings = embeddings
+
+        # Build BM25 index
+        docs = []
+        for t in self.table_names:
+            desc = descriptions.get(t, {}).get("description", "")
+            cols = graph.nodes[t]["columns"]
+            doc = build_bm25_doc(t, desc, cols)
+            docs.append(doc.lower().split())
+        
+        if docs:
+            self.bm25 = BM25Okapi(docs)
+        else:
+            self.bm25 = None
+
+    def find_seeds(self, query: str, table_count: int) -> list:
+        """
+        Run hybrid retrieval and return top-K (table_name, rrf_score) tuples.
+        K is selected adaptively based on score distribution and schema size.
+        """
+        tokens = query.lower().split()
+
+        # BM25 ranking
+        if self.bm25:
+            bm25_raw = self.bm25.get_scores(tokens)
+            bm25_ranking = [self.table_names[i] for i in np.argsort(bm25_raw)[::-1]]
+        else:
+            bm25_ranking = []
+
+        # Embedding ranking
+        query_vec = embed_text(query)
+        emb_scores = [
+            (t, cosine_sim(query_vec, self.embeddings[t]))
+            for t in self.table_names
+        ]
+        emb_scores.sort(key=lambda x: x[1], reverse=True)
+        emb_ranking = [t for t, _ in emb_scores]
+        emb_score_map = {t: s for t, s in emb_scores}
+
+        # Reciprocal Rank Fusion (k=60, Cormack et al. 2009)
+        rrf: dict[str, float] = {}
+        for rank, t in enumerate(bm25_ranking):
+            rrf[t] = rrf.get(t, 0.0) + 1.0 / (60 + rank + 1)
+        for rank, t in enumerate(emb_ranking):
+            rrf[t] = rrf.get(t, 0.0) + 1.0 / (60 + rank + 1)
+
+        fused = sorted(rrf.items(), key=lambda x: x[1], reverse=True)
+
+        # Adaptive K — use embedding scores for gap detection (0–1 scale, stable)
+        fused_with_emb = [(t, emb_score_map.get(t, 0.0)) for t, _ in fused]
+        k = compute_adaptive_k(table_count, fused_with_emb)
+
+        return fused[:k]
 
 
 # ── Graph expansion (Phase 2) ──────────────────────────────────────────────
@@ -113,20 +224,10 @@ def expand_from_seeds(graph, seed_tables, descriptions):
 
     # 1-hop expansion
     for seed in list(focus):
-        # Outgoing FKs
         for _, neighbor, _ in graph.out_edges(seed, data=True):
             focus.add(neighbor)
-        # Incoming FKs
         for neighbor, _, _ in graph.in_edges(seed, data=True):
             focus.add(neighbor)
-
-    # Junction detection: any table in focus that has junction pattern
-    # and connects two other focus tables
-    for table in list(focus):
-        patterns = graph.nodes[table].get("patterns", [])
-        if "junction_pure" in patterns or "junction_with_payload" in patterns:
-            # Already in focus — good
-            pass
 
     # Collect join paths
     join_paths = []
@@ -150,11 +251,10 @@ def expand_from_seeds(graph, seed_tables, descriptions):
             auth_linkage = " → ".join(
                 f"{t}.{fk} → {ref}" for t, fk, ref in chain
             )
-            # Add users to focus if found
             focus.add("users")
             break
 
-    # Collect patterns per table
+    # Patterns per table
     patterns = {}
     for t in focus:
         p = graph.nodes[t].get("patterns", [])
@@ -178,7 +278,7 @@ def expand_from_seeds(graph, seed_tables, descriptions):
         info = descriptions.get(t, {})
         table_descriptions[t] = info.get("description", f"{t} table")
 
-    # Column details for focus tables
+    # Column details
     table_columns = {}
     for t in focus:
         table_columns[t] = graph.nodes[t]["columns"]
@@ -195,23 +295,42 @@ def expand_from_seeds(graph, seed_tables, descriptions):
     }
 
 
-def find(query, graph, embeddings, descriptions, top_k=2):
+# ── Public API ──────────────────────────────────────────────────────────────
+
+def find(query: str, graph, descriptions: dict, retriever: HybridRetriever) -> dict:
     """
-    Full retrieval pipeline: semantic seed → graph expand → context package.
+    Full retrieval pipeline: hybrid seed → graph expand → context package.
+
+    Args:
+        query:      Natural language query from the user.
+        graph:      NetworkX DiGraph of the schema.
+        descriptions: {table_name: {description, business_role}} from context_engine.
+        retriever:  HybridRetriever built for the active DatabaseProject.
+
+    Returns:
+        Context package dict with seed_tables, focus_tables, join_paths, etc.
     """
-    seeds = find_seeds(query, embeddings, top_k=top_k)
+    table_count = len(graph.nodes)
+    seeds = retriever.find_seeds(query, table_count)
     seed_names = [name for name, _ in seeds]
+
     context = expand_from_seeds(graph, seed_names, descriptions)
-    context["seed_scores"] = {name: round(score, 4) for name, score in seeds}
+    context["seed_scores"] = {name: round(score, 5) for name, score in seeds}
+    context["retrieval_k"] = len(seeds)
+
     return context
 
 
-def print_context(ctx):
+def print_context(ctx: dict):
     """Pretty-print a context package."""
+    k = ctx.get("retrieval_k", len(ctx["seed_tables"]))
     print("\n" + "=" * 60)
     print("RETRIEVAL CONTEXT")
     print("=" * 60)
-    print(f"Seeds: {ctx['seed_tables']} (scores: {ctx.get('seed_scores', {})})")
+    print(f"Seeds (K={k}, adaptive, hybrid):")
+    for name, score in ctx.get("seed_scores", {}).items():
+        marker = " ← seed" if name in ctx["seed_tables"] else ""
+        print(f"  {name}  rrf={score:.5f}{marker}")
     print(f"Focus tables: {ctx['focus_tables']}")
     print(f"\nJoin paths:")
     for jp in ctx["join_paths"]:
@@ -223,21 +342,3 @@ def print_context(ctx):
         for h in ctx["hints"]:
             print(f"  • {h}")
     print("=" * 60)
-
-
-if __name__ == "__main__":
-    from database import get_engine, create_schema, seed_data
-    from graph_builder import build_graph
-    from context_engine import generate_all_descriptions
-
-    engine = create_schema()
-    seed_data(engine)
-    g = build_graph(engine)
-    descs = generate_all_descriptions(g)
-    embs = embed_tables(g, descs)
-
-    # Test queries
-    for q in ["purchase history", "product catalogue", "shipping status"]:
-        print(f"\n🔍 Query: '{q}'")
-        ctx = find(q, g, embs, descs)
-        print_context(ctx)

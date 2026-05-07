@@ -3,31 +3,49 @@ agents/sql_agent.py — Generates SQL queries from natural language.
 
 Given a retrieval context package and a user query, produces a
 structured response with: sql_query, explanation, tables_used, warnings.
+
+Supports both SQLite and PostgreSQL dialects with separate system prompts.
 """
 
 from agents.base import BaseAgent
 
 
+# ── System prompts (separate per dialect) ──────────────────────────────────
+
+SQLITE_SYSTEM_PROMPT = (
+    "You are a SQL generation assistant. You receive a database context "
+    "package describing available tables, their columns, join paths, and "
+    "patterns. Generate a SQLite-compatible query that answers the user's "
+    "request. ONLY use tables and columns described in the context. "
+    "Do NOT invent columns or tables. Respond ONLY with valid JSON."
+)
+
+POSTGRES_SYSTEM_PROMPT = (
+    "You are a SQL generation assistant. You receive a database context "
+    "package describing available tables, their columns, join paths, and "
+    "patterns. Generate a PostgreSQL-compatible query that answers the user's "
+    "request. You may use PostgreSQL features: CTEs, window functions, "
+    "RETURNING, ILIKE, array operations, JSONB operators, date/interval "
+    "arithmetic, etc. ONLY use tables and columns described in the context. "
+    "Do NOT invent columns or tables. Respond ONLY with valid JSON."
+)
+
+
 class SQLQueryAgent(BaseAgent):
-    """Agent that generates SQLite-compatible queries from natural language."""
+    """Agent that generates dialect-aware SQL queries from natural language."""
 
     name = "sql"
     description = "Generate SQL queries from natural language using schema context"
 
-    system_prompt = (
-        "You are a SQL generation assistant. You receive a database context "
-        "package describing available tables, their columns, join paths, and "
-        "patterns. Generate a SQLite-compatible query that answers the user's "
-        "request. ONLY use tables and columns described in the context. "
-        "Do NOT invent columns or tables. Respond ONLY with valid JSON."
-    )
+    # Default prompt (SQLite) — kept for base class compatibility
+    system_prompt = SQLITE_SYSTEM_PROMPT
 
     response_schema = {
         "type": "object",
         "properties": {
             "sql_query": {
                 "type": "string",
-                "description": "The SQLite-compatible SQL query that answers the user's request",
+                "description": "The SQL query that answers the user's request",
             },
             "explanation": {
                 "type": "string",
@@ -48,6 +66,13 @@ class SQLQueryAgent(BaseAgent):
     }
 
     max_tokens = 800
+
+    def get_system_prompt(self, context: dict) -> str:
+        """Select system prompt based on the active database dialect."""
+        dialect = context.get("dialect", "sqlite")
+        if dialect == "postgresql":
+            return POSTGRES_SYSTEM_PROMPT
+        return SQLITE_SYSTEM_PROMPT
 
     def post_process(self, result):
         """Ensure optional fields have defaults."""

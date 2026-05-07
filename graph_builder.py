@@ -67,7 +67,11 @@ def build_graph(engine):
     metadata.reflect(bind=engine)
 
     graph = nx.DiGraph()
-    table_names = inspector.get_table_names()
+
+    # PostgreSQL: restrict to 'public' schema to exclude system catalogs
+    dialect_name = engine.dialect.name
+    schema_arg = {"schema": "public"} if dialect_name == "postgresql" else {}
+    table_names = inspector.get_table_names(**schema_arg)
 
     # ── Pass 1: create nodes ──
     for table_name in table_names:

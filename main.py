@@ -3,14 +3,24 @@ main.py — Wires everything together. CLI entry point.
 
 On startup:
   1. Migrate legacy test.db if present
-  2. Load the workspace (databases/ folder)
-  3. Auto-load the first available database, or prompt to create one
+  2. Ask the user: SQLite or PostgreSQL?  (sets session_dialect)
+  3. Auto-load the first DB matching that dialect, if one exists
   4. Enter interactive query loop
+
+session_dialect is the single source of truth for intent:
+  - schema agent always uses session_dialect (can create a DB even with no active project)
+  - sql agent uses active_project.dialect (needs a loaded DB to query)
+  - 'use <name>' loads any DB and updates session_dialect to match it
+  - 'create <name>' defaults to session_dialect; --postgres / --sqlite override it
 
 REPL commands:
   databases            — list all databases
-  use <name>           — switch active database
-  create <name>        — create empty database
+  use <name>           — switch active database (updates dialect)
+  create <name>        — create database using current session dialect
+  create <name> --postgres — force PostgreSQL
+  create <name> --sqlite   — force SQLite
+  create demo          — create the ecommerce demo database (SQLite)
+  dialect              — show or switch session dialect
   refresh              — re-reflect + re-describe + re-embed active DB
   graph                — print schema graph (text)
   visualize            — open interactive graph in browser
@@ -38,9 +48,10 @@ from database import create_schema, seed_data
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
-def _make_tool_registry(engine) -> ToolRegistry:
+def _make_tool_registry(engine=None) -> ToolRegistry:
     registry = ToolRegistry()
-    registry.register(SQLExecutorTool(engine))
+    if engine:
+        registry.register(SQLExecutorTool(engine))
     return registry
 
 
@@ -51,14 +62,18 @@ def _make_agent_registry() -> AgentRegistry:
     return registry
 
 
-def _print_banner(ws: Workspace, agent_registry: AgentRegistry, tool_registry: ToolRegistry):
+def _print_banner(ws: Workspace, agent_registry: AgentRegistry,
+                  tool_registry: ToolRegistry, session_dialect: str):
     print("\n" + "=" * 60)
     print("  DATABASE CRUD GENERATOR")
     print("=" * 60)
     print("  databases           — list all databases")
-    print("  use <name>          — switch active database")
-    print("  create <name>       — create a new empty database")
-    print("  create demo         — create the ecommerce demo database")
+    print("  use <name>          — switch active database (dialect follows)")
+    print("  create <name>       — create DB using session dialect")
+    print("  create <name> --postgres — force PostgreSQL")
+    print("  create <name> --sqlite   — force SQLite")
+    print("  create demo         — ecommerce demo (SQLite)")
+    print("  dialect             — show/switch session dialect")
     print("  refresh             — rebuild graph/descriptions for active DB")
     print("  graph               — print schema graph")
     print("  visualize           — open graph in browser")
@@ -69,19 +84,23 @@ def _print_banner(ws: Workspace, agent_registry: AgentRegistry, tool_registry: T
     print("=" * 60)
     active = ws.active
     if active:
-        print(f"  Active DB   : {active.name} ({active.table_count} tables)")
-    print(f"  Active Agent: {agent_registry.active.name if agent_registry.active else 'none'}")
-    print(f"  Tools       : {', '.join(tool_registry.list_tools())}")
+        print(f"  Active DB     : {active.name} ({active.table_count} tables, {active.dialect.upper()})")
+    else:
+        print(f"  Active DB     : none")
+    print(f"  Session Dialect: {session_dialect.upper()}")
+    print(f"  Active Agent  : {agent_registry.active.name if agent_registry.active else 'none'}")
+    print(f"  Tools         : {', '.join(tool_registry.list_tools()) or 'none'}")
     print("=" * 60)
 
 
 # ── Schema agent post-processing ───────────────────────────────────────────
 
-def _handle_schema_result(result: dict, ws: Workspace, tool_registry: ToolRegistry) -> bool:
+def _handle_schema_result(result: dict, ws: Workspace,
+                          tool_registry: ToolRegistry) -> bool:
     """
-    After the schema agent runs: show statements, ask to create the DB,
-    then ask whether to build graph + descriptions.
-    Returns True if a new DB was created and loaded.
+    After schema agent runs: confirm name, create DB, execute DDL,
+    optionally load and make active.
+    Returns True if a new DB was created.
     """
     if result.get("_error"):
         return False
@@ -91,15 +110,18 @@ def _handle_schema_result(result: dict, ws: Workspace, tool_registry: ToolRegist
         print("  No SQL statements generated.")
         return False
 
+    dialect = result.get("_dialect", "sqlite")
     db_name = result.get("database_name", "new_database").replace(" ", "_").lower()
 
-    # Ask to create the DB
     print(f"\n  Suggested database name: {db_name}")
     try:
         name_input = input(f"  Database name [{db_name}]: ").strip()
         if name_input:
             db_name = name_input
-        confirm = input(f"\n  Create database '{db_name}' with {len(sql_statements)} table(s)? [y/N]: ").strip().lower()
+        confirm = input(
+            f"\n  Create {dialect.upper()} database '{db_name}' "
+            f"with {len(sql_statements)} table(s)? [y/N]: "
+        ).strip().lower()
     except (EOFError, KeyboardInterrupt):
         print("\n  Cancelled.")
         return False
@@ -109,7 +131,7 @@ def _handle_schema_result(result: dict, ws: Workspace, tool_registry: ToolRegist
         return False
 
     # Create the DB
-    ws.create_empty(db_name)
+    ws.create_empty(db_name, dialect=dialect)
     engine = ws.get_engine_for(db_name)
 
     # Execute CREATE TABLE statements
@@ -121,12 +143,12 @@ def _handle_schema_result(result: dict, ws: Workspace, tool_registry: ToolRegist
 
     print(f"  {len(sql_statements)} table(s) created.")
 
-    # Print table details
+    # Show graph preview
     from graph_builder import build_graph
     graph = build_graph(engine)
     print_graph(graph)
 
-    # Ask to build graph + descriptions
+    # Ask to load and make active
     try:
         build_confirm = input(
             "\n  Build graph, descriptions and embeddings for this database? [Y/n]: "
@@ -136,10 +158,9 @@ def _handle_schema_result(result: dict, ws: Workspace, tool_registry: ToolRegist
         return True
 
     if build_confirm in ("", "y", "yes"):
-        print(f"  Loading database '{db_name}'...")
+        print(f"  Loading '{db_name}'...")
         ws.load(db_name, engine=engine)
         ws.set_active(db_name)
-        # Update sql_executor engine
         tool_registry.register(SQLExecutorTool(ws.active.engine))
         print(f"  Switched to database: {db_name}")
     else:
@@ -148,10 +169,44 @@ def _handle_schema_result(result: dict, ws: Workspace, tool_registry: ToolRegist
     return True
 
 
+# ── Startup dialect selection ───────────────────────────────────────────────
+
+def _ask_dialect() -> str:
+    """
+    Ask the user which dialect they want to work with this session.
+    Returns 'sqlite' or 'postgresql'.
+    """
+    print("\n" + "=" * 60)
+    print("  DATABASE CRUD GENERATOR")
+    print("=" * 60)
+    print("  Which database dialect do you want to use?")
+    print("  [1] SQLite    (local file-based)")
+    print("  [2] PostgreSQL (server-based)")
+    print("=" * 60)
+
+    while True:
+        try:
+            choice = input("  Choice [1/2] (default: 1): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nGoodbye!")
+            sys.exit(0)
+
+        if choice in ("", "1", "sqlite", "s"):
+            print("  Session dialect: SQLITE")
+            return "sqlite"
+        elif choice in ("2", "postgres", "postgresql", "pg", "p"):
+            print("  Session dialect: POSTGRESQL")
+            return "postgresql"
+        else:
+            print("  Please enter 1 for SQLite or 2 for PostgreSQL.")
+
+
 # ── Main loop ──────────────────────────────────────────────────────────────
 
-def interactive_loop(ws: Workspace, tool_registry: ToolRegistry, agent_registry: AgentRegistry):
-    _print_banner(ws, agent_registry, tool_registry)
+def interactive_loop(ws: Workspace, tool_registry: ToolRegistry,
+                     agent_registry: AgentRegistry, session_dialect: str):
+
+    _print_banner(ws, agent_registry, tool_registry, session_dialect)
 
     while True:
         active_project = ws.active
@@ -160,7 +215,7 @@ def interactive_loop(ws: Workspace, tool_registry: ToolRegistry, agent_registry:
         agent_label = active_agent.name if active_agent else "none"
 
         try:
-            query = input(f"\n[{agent_label}@{db_label}] >> ").strip()
+            query = input(f"\n[{agent_label}@{db_label}|{session_dialect[:2].upper()}] >> ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\nGoodbye!")
             break
@@ -175,15 +230,36 @@ def interactive_loop(ws: Workspace, tool_registry: ToolRegistry, agent_registry:
             print("Goodbye!")
             break
 
+        # databases — list all with dialect labels
         if q == "databases":
             dbs = ws.list_databases()
             if not dbs:
                 print("  No databases found. Use 'create <name>' to create one.")
             for name in dbs:
+                d = ws.get_dialect(name)
                 marker = " <- active" if active_project and name == active_project.name else ""
-                print(f"  {name}{marker}")
+                print(f"  {name} ({d.upper()}){marker}")
             continue
 
+        # dialect — show or switch session dialect
+        if q == "dialect":
+            print(f"  Session dialect: {session_dialect.upper()}")
+            print("  Type 'dialect sqlite' or 'dialect postgres' to switch.")
+            continue
+
+        if q in ("dialect sqlite", "dialect sqlite", "dialect sq"):
+            session_dialect = "sqlite"
+            print("  Session dialect switched to SQLITE.")
+            print("  'agent schema' will now generate SQLite schemas.")
+            continue
+
+        if q in ("dialect postgres", "dialect postgresql", "dialect pg"):
+            session_dialect = "postgresql"
+            print("  Session dialect switched to POSTGRESQL.")
+            print("  'agent schema' will now generate PostgreSQL schemas.")
+            continue
+
+        # use — switch active database, dialect follows the project
         if q.startswith("use "):
             name = query.split(" ", 1)[1].strip()
             if not ws.exists(name):
@@ -194,30 +270,53 @@ def interactive_loop(ws: Workspace, tool_registry: ToolRegistry, agent_registry:
             ws.set_active(name)
             tool_registry.register(SQLExecutorTool(ws.active.engine))
             p = ws.active
-            print(f"  Switched to '{name}' ({p.table_count} tables).")
+            # Session dialect follows the project
+            session_dialect = p.dialect
+            print(f"  Switched to '{name}' ({p.table_count} tables, {p.dialect.upper()}).")
+            print(f"  Session dialect updated to {session_dialect.upper()}.")
             continue
 
+        # create — uses session_dialect by default, flags override
         if q.startswith("create "):
-            name = query.split(" ", 1)[1].strip()
+            raw = query.split(" ", 1)[1].strip()
+
+            # Parse optional dialect override flags
+            if "--postgres" in raw:
+                create_dialect = "postgresql"
+                name = raw.replace("--postgres", "").strip()
+            elif "--sqlite" in raw:
+                create_dialect = "sqlite"
+                name = raw.replace("--sqlite", "").strip()
+            else:
+                # Default: use session dialect
+                create_dialect = session_dialect
+                name = raw.strip()
+
             if name == "demo":
-                # Create ecommerce demo
+                # Demo is always SQLite
                 if ws.exists("ecommerce"):
                     print("  Demo database 'ecommerce' already exists. Use 'use ecommerce'.")
                     continue
-                ws.create_empty("ecommerce")
+                ws.create_empty("ecommerce", dialect="sqlite")
                 engine = ws.get_engine_for("ecommerce")
                 create_schema(engine)
                 seed_data(engine)
                 ws.load("ecommerce", engine=engine)
                 ws.set_active("ecommerce")
                 tool_registry.register(SQLExecutorTool(ws.active.engine))
+                session_dialect = "sqlite"
                 print("  Demo database 'ecommerce' created and loaded.")
+                print("  Session dialect set to SQLITE.")
             else:
                 if ws.exists(name):
                     print(f"  Database '{name}' already exists. Use 'use {name}' to switch.")
                     continue
-                ws.create_empty(name)
-                print(f"  Empty database '{name}' created. Use 'use {name}' to load it.")
+                ws.create_empty(name, dialect=create_dialect)
+                # Update session dialect to match what was created
+                session_dialect = create_dialect
+                print(f"  Created {create_dialect.upper()} database '{name}'.")
+                print(f"  Session dialect set to {session_dialect.upper()}.")
+                print(f"  Use 'use {name}' to load it, or 'agent schema' to design tables.")
             continue
 
         if q == "refresh":
@@ -281,20 +380,22 @@ def interactive_loop(ws: Workspace, tool_registry: ToolRegistry, agent_registry:
             print("  No active agent. Use 'agent <name>' to select one.")
             continue
 
-        # Schema agent — no retrieval
+        # Schema agent — uses session_dialect, no active DB required
         if not active_agent.needs_context:
-            print(f"  [{active_agent.name}] Generating...")
-            result = active_agent.ask(query, context={})
+            print(f"  [{active_agent.name}] Generating ({session_dialect})...")
+            result = active_agent.ask(query, context={"dialect": session_dialect})
             active_agent.print_result(result)
 
-            # Handle schema creation flow
             if active_agent.name == "schema":
-                _handle_schema_result(result, ws, tool_registry)
+                created = _handle_schema_result(result, ws, tool_registry)
+                # If a new DB was created and loaded, sync session_dialect
+                if created and ws.active:
+                    session_dialect = ws.active.dialect
             continue
 
-        # Context-needing agents — require an active DB
+        # SQL agent — requires an active DB
         if not active_project:
-            print("  No active database. Use 'use <name>' or 'create <name>'.")
+            print("  No active database. Use 'use <name>' to load one.")
             continue
 
         # Retrieval
@@ -302,13 +403,14 @@ def interactive_loop(ws: Workspace, tool_registry: ToolRegistry, agent_registry:
         context = find(
             query,
             active_project.graph,
-            active_project.embeddings,
             active_project.descriptions,
+            active_project.retriever,
         )
         print_context(context)
 
-        # Agent
-        print(f"  [{active_agent.name}] Generating...")
+        # Agent — always uses active_project.dialect for SQL generation
+        context["dialect"] = active_project.dialect
+        print(f"  [{active_agent.name}] Generating ({active_project.dialect})...")
         result = active_agent.ask(query, context)
         active_agent.print_result(result)
 
@@ -319,7 +421,6 @@ def interactive_loop(ws: Workspace, tool_registry: ToolRegistry, agent_registry:
             tool_result = sql_tool.run(query=sql_query)
             if tool_result.success:
                 print(tool_result.message)
-                # Auto-rebuild if DDL changed schema
                 if tool_result.metadata.get("schema_changed"):
                     print("  Schema change detected. Rebuilding...")
                     stale = ws.refresh_active()
@@ -336,32 +437,40 @@ def interactive_loop(ws: Workspace, tool_registry: ToolRegistry, agent_registry:
 
 def main():
     ws = Workspace()
-
-    # Migrate legacy files if they exist
     ws.migrate_legacy()
 
+    # Step 1: Ask dialect — this sets session_dialect for the whole session
+    session_dialect = _ask_dialect()
+
     # Build registries
-    tool_registry = ToolRegistry()
+    tool_registry = _make_tool_registry()
     agent_registry = _make_agent_registry()
 
-    # Auto-load first available DB, or print guidance
+    # Step 2: Auto-load the first DB matching the chosen dialect
     dbs = ws.list_databases()
-    if dbs:
-        first = dbs[0]
-        print(f"Loading database '{first}'...")
+    matching = [n for n in dbs if ws.get_dialect(n) == session_dialect]
+
+    if matching:
+        first = matching[0]
+        print(f"\n  Auto-loading '{first}' ({session_dialect.upper()})...")
         ws.load(first)
         ws.set_active(first)
         tool_registry.register(SQLExecutorTool(ws.active.engine))
-        print(f"Agents: {', '.join(agent_registry.list_agents())} (active: {agent_registry.active.name})")
+        print(f"  Ready. Agents: {', '.join(agent_registry.list_agents())} (active: {agent_registry.active.name})")
+    elif dbs:
+        # DBs exist but not for this dialect
+        other_dialect = "postgresql" if session_dialect == "sqlite" else "sqlite"
+        print(f"\n  No {session_dialect.upper()} databases found.")
+        print(f"  (You have {len(dbs)} {other_dialect.upper()} database(s) — use 'use <name>' to switch.)")
+        print(f"  Use 'agent schema' to design a new {session_dialect.upper()} database.")
+        print(f"  Use 'create <name>' to create an empty {session_dialect.upper()} database.")
     else:
-        print("No databases found.")
-        print("  Type 'create demo' to load the ecommerce demo.")
-        print("  Type 'create <name>' to create a new empty database.")
-        print("  Type 'agent schema' then describe your schema to design one from scratch.")
-        # Still need a placeholder tool registry (no engine yet)
-        tool_registry = ToolRegistry()
+        # No databases at all
+        print(f"\n  No databases found.")
+        print(f"  Use 'agent schema' to design a new database.")
+        print(f"  Use 'create demo' to load the SQLite ecommerce demo.")
 
-    interactive_loop(ws, tool_registry, agent_registry)
+    interactive_loop(ws, tool_registry, agent_registry, session_dialect)
 
 
 if __name__ == "__main__":
