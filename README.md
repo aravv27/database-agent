@@ -6,7 +6,7 @@ An intelligent, multi-database REPL that uses LLMs to design schemas and generat
 
 - **Multi-Database Workspace:** Manage multiple SQLite databases under `databases/`. Switch between them at runtime.
 - **Natural Language Schema Design:** Describe the app you want to build, and the Schema Agent designs a normalized SQLite schema, generates `CREATE TABLE` statements, and loads everything into the graph.
-- **Graph-Guided SQL Generation:** Incoming queries are resolved using a two-phase retrieval system — semantic seeding + graph expansion — that restricts what the LLM sees to only the relevant tables.
+- **Graph-Guided SQL Generation:** Incoming queries are resolved using a two-phase retrieval system — hybrid BM25/semantic seeding with adaptive K + graph expansion — that restricts what the LLM sees to only the relevant tables.
 - **Incremental Cache:** Each table is SHA-256 hashed by structure. On restart, only changed tables are re-described and re-embedded; everything else loads from cache in milliseconds.
 - **Auto-Rebuilding:** DDL operations (`CREATE`, `ALTER`, `DROP`) are detected automatically. The system incrementally rebuilds only the affected parts of the graph without a full restart.
 - **Interactive Visualization:** Open a `pyvis`-powered HTML graph of your active schema in the browser, with a side panel for table inspection.
@@ -55,25 +55,56 @@ This neighborhood is sent to `mistralai/mistral-nemotron` via NVIDIA NIM with a 
 - `description` — 1-2 sentence human-readable explanation of the table's purpose
 - `business_role` — one of: `core_entity`, `transaction`, `junction`, `detail`, `reference`, `audit`
 
-### 4. Embeddings & Semantic Search (`retrieval.py`)
+### 4. Hybrid Retrieval & Adaptive Seeding (`retrieval.py`)
 
-Each table is embedded using `sentence-transformers` (`all-MiniLM-L6-v2`, 384-dim vectors) from the string:
+Each table is embedded using `sentence-transformers` (`all-MiniLM-L6-v2`, 384-dim vectors). Embeddings are stored as base64-encoded raw `float32` bytes in `schema_cache.json`.
+
+When a user submits a query, a **`HybridRetriever`** runs two parallel rankers then fuses their results:
+
+**BM25 (sparse lexical ranker)**
+Each table's BM25 document is constructed as:
 ```
-"{table_name}: {description}. Columns: {col1}, {col2}, ..."
+{table_name} {table_name} {description} {col1} {col2} ... {col1} {col2} ...
 ```
+Table name and column names are repeated twice to boost their term frequency. This makes exact-match queries like `"user_id"` or `"orders table"` surface the right table reliably — something embeddings alone can miss.
 
-Embeddings are stored as base64-encoded raw `float32` bytes in `schema_cache.json`.
+**Embedding ranker (dense semantic)**
+The query is embedded with the same model and cosine similarity is computed against all table embeddings. Captures meaning-based matches where the query doesn't share literal tokens with the schema.
 
-When a user submits a query, **two-phase retrieval** runs:
+**Reciprocal Rank Fusion (RRF, k=60)**
+Both rankers produce an independent ranked list. RRF merges them without needing score normalization:
+```
+RRF score = Σ  1 / (60 + rank_i)   for each ranker i
+```
+The ranker that is more confident about a table (lower rank) contributes more. Neither ranker can dominate by raw score magnitude.
 
-**Phase 1 — Semantic Seeding:** The query is embedded with the same model. Cosine similarity is computed against all table embeddings. The top-K tables (default: 2) become the **seeds**.
+**Adaptive K**
+Instead of a hardcoded `top_k`, the number of seeds is chosen automatically using two signals:
+- **Schema-scaled ceiling:** `max_k = clamp(log₂(table_count), 2, 6)` — larger schemas allow more seeds
+- **Score-gap detection:** seeds are added until the embedding score drops more than `0.10` from the previous entry — a natural cliff signals the end of the relevant cluster
 
-**Phase 2 — Graph Expansion:** Starting from the seed tables, the graph is walked:
+| Schema size | max_k |
+|------------|-------|
+| ~20 tables | 4 |
+| ~50 tables | 5 |
+| 100+ tables | 6 |
+
+**Phase 2 — Graph Expansion**
+Starting from the seed tables, the graph is walked:
 - All 1-hop FK neighbors (both incoming and outgoing) are added to the **focus set**
 - Junction tables connecting any two focus tables are automatically included
 - An **auth chain** tracer walks outgoing FKs up to 3 hops to find a path to the `users` table, surfacing the auth linkage if found
 
 The final **context package** passed to the LLM contains: focus tables, join paths, auth linkage, pattern-derived generation hints (e.g., "apply soft-delete filter on orders"), and column details.
+
+The REPL shows the adaptive K and strategy on every query:
+```
+Seeds (K=3, adaptive, hybrid):
+  orders  rrf=0.03201 ← seed
+  users   rrf=0.03187 ← seed
+  products  rrf=0.03041 ← seed
+Focus tables: ['order_items', 'orders', 'products', 'users']
+```
 
 ---
 
@@ -83,7 +114,7 @@ The final **context package** passed to the LLM contains: focus tables, join pat
    ```bash
    conda create -n crud-gen python=3.12
    conda activate crud-gen
-   pip install sqlalchemy networkx pyvis sentence-transformers openai google-genai python-dotenv
+   pip install sqlalchemy networkx pyvis sentence-transformers openai google-genai python-dotenv rank_bm25
    ```
 
 2. **Add API keys to `.env`:**
@@ -153,7 +184,7 @@ database-crud-gen/
 │   └── sql_executor.py      # SQL execution tool with confirmation + DDL detection
 ├── graph_builder.py         # SQLAlchemy reflection → NetworkX DiGraph
 ├── context_engine.py        # Per-table AI description generation
-├── retrieval.py             # Two-phase retrieval: semantic seed + graph expansion
+├── retrieval.py             # Hybrid retrieval: BM25 + semantic RRF seeding, adaptive K, graph expansion
 ├── cache.py                 # SHA-256 hashing, cache persistence, embedding codec
 ├── workspace.py             # Multi-database project manager
 ├── visualize.py             # pyvis-based interactive schema visualization

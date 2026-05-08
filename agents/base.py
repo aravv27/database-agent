@@ -15,6 +15,7 @@ The base class handles:
 
 import os
 import json
+import time
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
@@ -152,12 +153,14 @@ class BaseAgent(ABC):
     def ask(self, query: str, context: dict) -> dict:
         """
         Full agent cycle: build prompt -> call LLM -> parse JSON -> post-process.
-        Returns the structured result dict.
+        Returns the structured result dict, with '_usage' metrics attached.
         """
         client = get_llm_client()
         user_prompt = self.build_user_prompt(query, context)
+        prompt_chars = len(user_prompt)
 
         try:
+            t_call = time.perf_counter()
             response = client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -168,13 +171,33 @@ class BaseAgent(ABC):
                 max_tokens=self.max_tokens,
                 response_format={"type": "json_object"},
             )
+            latency_ms = round((time.perf_counter() - t_call) * 1000, 1)
 
             raw = response.choices[0].message.content.strip()
             result = json.loads(raw)
-            return self.post_process(result)
+            result = self.post_process(result)
+
+            result["_usage"] = {
+                "prompt_tokens":      response.usage.prompt_tokens,
+                "completion_tokens":  response.usage.completion_tokens,
+                "total_tokens":       response.usage.total_tokens,
+                "finish_reason":      response.choices[0].finish_reason,
+                "latency_ms":         latency_ms,
+                "prompt_chars":       prompt_chars,
+            }
+            return result
 
         except Exception as e:
-            return self._error_result(str(e))
+            result = self._error_result(str(e))
+            result["_usage"] = {
+                "prompt_tokens":      0,
+                "completion_tokens":  0,
+                "total_tokens":       0,
+                "finish_reason":      "error",
+                "latency_ms":         0.0,
+                "prompt_chars":       prompt_chars,
+            }
+            return result
 
     def _error_result(self, error_msg: str) -> dict:
         """Return a standardized error result. Override if your schema differs."""

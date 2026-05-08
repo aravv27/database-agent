@@ -100,12 +100,15 @@ DESCRIPTION_SCHEMA = {
 def generate_description(graph, table_name):
     """
     Call NVIDIA NIM to generate a structured description for one table.
-    Returns dict with 'description' and 'business_role' keys.
+    Returns dict with 'description', 'business_role', and '_usage' keys.
+    '_usage' carries per-call metrics (tokens, latency, finish_reason, etc.).
     """
     neighborhood = _build_neighborhood(graph, table_name)
+    neighborhood_chars = len(neighborhood)
     client = _get_client()
 
     try:
+        t_call = time.perf_counter()
         response = client.chat.completions.create(
             model=MODEL,
             messages=[
@@ -130,6 +133,7 @@ def generate_description(graph, table_name):
             max_tokens=200,
             response_format={"type": "json_object"},
         )
+        latency_ms = round((time.perf_counter() - t_call) * 1000, 1)
 
         raw = response.choices[0].message.content.strip()
         result = json.loads(raw)
@@ -138,6 +142,15 @@ def generate_description(graph, table_name):
         if "description" not in result or "business_role" not in result:
             raise ValueError(f"Missing required fields in response: {raw}")
 
+        result["_usage"] = {
+            "prompt_tokens":      response.usage.prompt_tokens,
+            "completion_tokens":  response.usage.completion_tokens,
+            "total_tokens":       response.usage.total_tokens,
+            "finish_reason":      response.choices[0].finish_reason,
+            "latency_ms":         latency_ms,
+            "neighborhood_chars": neighborhood_chars,
+            "description_chars":  len(result["description"]),
+        }
         return result
 
     except Exception as e:
@@ -147,6 +160,15 @@ def generate_description(graph, table_name):
             "description": f"{table_name} table with columns: {cols}",
             "business_role": "core_entity",
             "_error": str(e),
+            "_usage": {
+                "prompt_tokens":      0,
+                "completion_tokens":  0,
+                "total_tokens":       0,
+                "finish_reason":      "error",
+                "latency_ms":         0.0,
+                "neighborhood_chars": neighborhood_chars,
+                "description_chars":  0,
+            },
         }
 
 

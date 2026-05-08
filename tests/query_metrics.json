@@ -1,0 +1,1278 @@
+{
+  "summary": {
+    "total_queries": 25,
+    "success_count": 25,
+    "error_count": 0,
+    "total_prompt_tokens": 36388,
+    "total_completion_tokens": 7694,
+    "total_tokens": 44082,
+    "prompt_tokens_per_query": {
+      "min": 558,
+      "max": 6828,
+      "mean": 1455.5,
+      "median": 944,
+      "stdev": 1495.0
+    },
+    "completion_tokens_per_query": {
+      "min": 159,
+      "max": 652,
+      "mean": 307.8,
+      "median": 264,
+      "stdev": 142.0
+    },
+    "total_tokens_per_query": {
+      "min": 735,
+      "max": 7017,
+      "mean": 1763.3,
+      "median": 1241,
+      "stdev": 1463.8
+    },
+    "agent_latency_ms": {
+      "min": 3336.5,
+      "max": 13393.4,
+      "mean": 6532.1,
+      "median": 5605.1,
+      "stdev": 2753.3,
+      "p95": 10408.8
+    },
+    "retrieval_latency_ms": {
+      "min": 12.3,
+      "max": 7141.4,
+      "mean": 319.1,
+      "median": 34.2,
+      "stdev": 1421.5
+    },
+    "prompt_chars_per_query": {
+      "min": 1807,
+      "max": 28570,
+      "mean": 5663.4,
+      "median": 3451,
+      "stdev": 6366.5
+    },
+    "adaptive_k_distribution": {
+      "4": 3,
+      "2": 5,
+      "1": 11,
+      "3": 5,
+      "6": 1
+    },
+    "seed_count_per_query": {
+      "min": 1,
+      "max": 6,
+      "mean": 2.2,
+      "median": 2,
+      "stdev": 1.3
+    },
+    "focus_tables_per_query": {
+      "min": 2,
+      "max": 52,
+      "mean": 8.5,
+      "median": 4,
+      "stdev": 11.7
+    },
+    "join_paths_per_query": {
+      "min": 1,
+      "max": 71,
+      "mean": 10.5,
+      "median": 4,
+      "stdev": 17.0
+    },
+    "auth_chain_hit_rate": 80.0,
+    "finish_reason_breakdown": {
+      "stop": 25
+    },
+    "focus_to_tokens_ratio": 207.9
+  },
+  "per_query": [
+    {
+      "query": "show all users and their profiles",
+      "query_index": 1,
+      "retrieval_k": 4,
+      "seed_tables": [
+        "department_members",
+        "project_members",
+        "users",
+        "user_profiles"
+      ],
+      "seed_count": 4,
+      "seed_scores": {
+        "department_members": 0.03101,
+        "project_members": 0.03089,
+        "users": 0.03083,
+        "user_profiles": 0.02991
+      },
+      "focus_table_count": 52,
+      "focus_tables": [
+        "affiliate_referrals",
+        "affiliates",
+        "announcements",
+        "api_keys",
+        "audit_logs",
+        "changelog_entries",
+        "channel_members",
+        "credits",
+        "dashboards",
+        "department_members",
+        "departments",
+        "direct_messages",
+        "document_comments",
+        "document_versions",
+        "documents",
+        "events",
+        "feature_requests",
+        "feature_usage",
+        "feature_votes",
+        "feedback",
+        "message_reactions",
+        "messages",
+        "notification_preferences",
+        "notifications",
+        "oauth_app_tokens",
+        "oauth_connections",
+        "org_audit_logs",
+        "org_integrations",
+        "org_invitations",
+        "org_members",
+        "page_views",
+        "password_resets",
+        "project_members",
+        "project_settings",
+        "projects",
+        "reports",
+        "sessions",
+        "support_tickets",
+        "task_assignments",
+        "task_attachments",
+        "task_comments",
+        "task_dependencies",
+        "task_time_logs",
+        "tasks",
+        "team_members",
+        "ticket_messages",
+        "two_factor_auth",
+        "user_profiles",
+        "user_settings",
+        "users",
+        "wiki_page_revisions",
+        "wiki_pages"
+      ],
+      "join_path_count": 71,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 7141.4,
+      "prompt_tokens": 6828,
+      "completion_tokens": 189,
+      "total_tokens": 7017,
+      "finish_reason": "stop",
+      "agent_latency_ms": 7561.3,
+      "prompt_chars": 28570,
+      "tables_used_in_sql": [
+        "users",
+        "user_profiles"
+      ],
+      "tables_used_count": 2,
+      "warning_count": 2,
+      "warnings": [
+        "Soft-delete filter applied to users table",
+        "LEFT JOIN used for user_profiles to include users without profiles"
+      ],
+      "is_error": false,
+      "sql_length": 252
+    },
+    {
+      "query": "list API keys created by a user with their scopes",
+      "query_index": 2,
+      "retrieval_k": 2,
+      "seed_tables": [
+        "api_keys",
+        "api_key_scopes"
+      ],
+      "seed_count": 2,
+      "seed_scores": {
+        "api_keys": 0.03252,
+        "api_key_scopes": 0.03202
+      },
+      "focus_table_count": 4,
+      "focus_tables": [
+        "api_key_scopes",
+        "api_keys",
+        "organizations",
+        "users"
+      ],
+      "join_path_count": 3,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 49.3,
+      "prompt_tokens": 833,
+      "completion_tokens": 346,
+      "total_tokens": 1179,
+      "finish_reason": "stop",
+      "agent_latency_ms": 7012.6,
+      "prompt_chars": 2964,
+      "tables_used_in_sql": [
+        "api_key_scopes",
+        "api_keys",
+        "organizations",
+        "users"
+      ],
+      "tables_used_count": 4,
+      "warning_count": 2,
+      "warnings": [
+        "Soft-delete filters applied on users and organizations tables",
+        "LEFT JOIN used for api_key_scopes which may result in NULL scopes if none exist"
+      ],
+      "is_error": false,
+      "sql_length": 531
+    },
+    {
+      "query": "find users who have two-factor authentication enabled",
+      "query_index": 3,
+      "retrieval_k": 1,
+      "seed_tables": [
+        "two_factor_auth"
+      ],
+      "seed_count": 1,
+      "seed_scores": {
+        "two_factor_auth": 0.03279
+      },
+      "focus_table_count": 2,
+      "focus_tables": [
+        "two_factor_auth",
+        "users"
+      ],
+      "join_path_count": 1,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 42.7,
+      "prompt_tokens": 576,
+      "completion_tokens": 159,
+      "total_tokens": 735,
+      "finish_reason": "stop",
+      "agent_latency_ms": 3336.5,
+      "prompt_chars": 1911,
+      "tables_used_in_sql": [
+        "users",
+        "two_factor_auth"
+      ],
+      "tables_used_count": 2,
+      "warning_count": 1,
+      "warnings": [
+        "Soft-delete filter applied to users table (WHERE users.deleted_at IS NULL)"
+      ],
+      "is_error": false,
+      "sql_length": 168
+    },
+    {
+      "query": "list all organizations and their departments",
+      "query_index": 4,
+      "retrieval_k": 1,
+      "seed_tables": [
+        "departments"
+      ],
+      "seed_count": 1,
+      "seed_scores": {
+        "departments": 0.03279
+      },
+      "focus_table_count": 4,
+      "focus_tables": [
+        "department_members",
+        "departments",
+        "organizations",
+        "users"
+      ],
+      "join_path_count": 4,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 39.1,
+      "prompt_tokens": 796,
+      "completion_tokens": 185,
+      "total_tokens": 981,
+      "finish_reason": "stop",
+      "agent_latency_ms": 4268.4,
+      "prompt_chars": 3008,
+      "tables_used_in_sql": [
+        "organizations",
+        "departments"
+      ],
+      "tables_used_count": 2,
+      "warning_count": 2,
+      "warnings": [
+        "Soft-delete filter applied to organizations",
+        "LEFT JOIN may include NULL values for departments if an organization has no departments"
+      ],
+      "is_error": false,
+      "sql_length": 234
+    },
+    {
+      "query": "show members of an organization with their roles",
+      "query_index": 5,
+      "retrieval_k": 4,
+      "seed_tables": [
+        "project_members",
+        "roles",
+        "channel_members",
+        "org_members"
+      ],
+      "seed_count": 4,
+      "seed_scores": {
+        "project_members": 0.03202,
+        "roles": 0.03202,
+        "channel_members": 0.03128,
+        "org_members": 0.03128
+      },
+      "focus_table_count": 10,
+      "focus_tables": [
+        "channel_members",
+        "channels",
+        "org_invitations",
+        "org_members",
+        "organizations",
+        "project_members",
+        "projects",
+        "role_permissions",
+        "roles",
+        "users"
+      ],
+      "join_path_count": 14,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 27.3,
+      "prompt_tokens": 1545,
+      "completion_tokens": 255,
+      "total_tokens": 1800,
+      "finish_reason": "stop",
+      "agent_latency_ms": 5089.3,
+      "prompt_chars": 6157,
+      "tables_used_in_sql": [
+        "org_members",
+        "users",
+        "roles"
+      ],
+      "tables_used_count": 3,
+      "warning_count": 2,
+      "warnings": [
+        "Soft-delete filters are applied to org_members and users tables",
+        "The query requires an organization_id parameter to be provided"
+      ],
+      "is_error": false,
+      "sql_length": 386
+    },
+    {
+      "query": "audit log entries for a specific organization in the last 30 days",
+      "query_index": 6,
+      "retrieval_k": 4,
+      "seed_tables": [
+        "feature_usage",
+        "organizations",
+        "channel_members",
+        "workflow_logs"
+      ],
+      "seed_count": 4,
+      "seed_scores": {
+        "feature_usage": 0.02927,
+        "organizations": 0.02826,
+        "channel_members": 0.02715,
+        "workflow_logs": 0.02686
+      },
+      "focus_table_count": 35,
+      "focus_tables": [
+        "affiliate_programs",
+        "announcements",
+        "api_keys",
+        "campaigns",
+        "channel_members",
+        "channels",
+        "credits",
+        "dashboards",
+        "departments",
+        "document_tags",
+        "documents",
+        "events",
+        "feature_requests",
+        "feature_usage",
+        "invoices",
+        "leads",
+        "oauth_apps",
+        "org_audit_logs",
+        "org_integrations",
+        "org_invitations",
+        "org_members",
+        "org_plans",
+        "org_settings",
+        "organizations",
+        "payment_methods",
+        "payments",
+        "projects",
+        "reports",
+        "subscriptions",
+        "support_tickets",
+        "teams",
+        "users",
+        "webhooks",
+        "wikis",
+        "workflow_logs"
+      ],
+      "join_path_count": 53,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 41.6,
+      "prompt_tokens": 5115,
+      "completion_tokens": 164,
+      "total_tokens": 5279,
+      "finish_reason": "stop",
+      "agent_latency_ms": 3760.4,
+      "prompt_chars": 21296,
+      "tables_used_in_sql": [
+        "org_audit_logs"
+      ],
+      "tables_used_count": 1,
+      "warning_count": 2,
+      "warnings": [
+        "The query assumes the organization_id parameter is provided",
+        "No soft-delete filter is applied to org_audit_logs as it's not mentioned in the generation hints"
+      ],
+      "is_error": false,
+      "sql_length": 147
+    },
+    {
+      "query": "tasks assigned to a user in a project with their labels",
+      "query_index": 7,
+      "retrieval_k": 3,
+      "seed_tables": [
+        "task_assignments",
+        "task_label_map",
+        "task_labels"
+      ],
+      "seed_count": 3,
+      "seed_scores": {
+        "task_assignments": 0.03227,
+        "task_label_map": 0.03226,
+        "task_labels": 0.03202
+      },
+      "focus_table_count": 6,
+      "focus_tables": [
+        "projects",
+        "task_assignments",
+        "task_label_map",
+        "task_labels",
+        "tasks",
+        "users"
+      ],
+      "join_path_count": 9,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 41.3,
+      "prompt_tokens": 1166,
+      "completion_tokens": 480,
+      "total_tokens": 1646,
+      "finish_reason": "stop",
+      "agent_latency_ms": 10408.8,
+      "prompt_chars": 4351,
+      "tables_used_in_sql": [
+        "tasks",
+        "task_assignments",
+        "projects",
+        "task_label_map",
+        "task_labels"
+      ],
+      "tables_used_count": 5,
+      "warning_count": 2,
+      "warnings": [
+        "Soft-delete filters are applied on projects and tasks tables",
+        "The LEFT JOIN with task_label_map and task_labels means tasks without labels will still appear in the results with NULL for the labels column"
+      ],
+      "is_error": false,
+      "sql_length": 816
+    },
+    {
+      "query": "show all milestones and their tasks for a project",
+      "query_index": 8,
+      "retrieval_k": 1,
+      "seed_tables": [
+        "milestones"
+      ],
+      "seed_count": 1,
+      "seed_scores": {
+        "milestones": 0.03279
+      },
+      "focus_table_count": 4,
+      "focus_tables": [
+        "milestones",
+        "projects",
+        "tasks",
+        "users"
+      ],
+      "join_path_count": 4,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 38.9,
+      "prompt_tokens": 992,
+      "completion_tokens": 332,
+      "total_tokens": 1324,
+      "finish_reason": "stop",
+      "agent_latency_ms": 6819.2,
+      "prompt_chars": 3615,
+      "tables_used_in_sql": [
+        "milestones",
+        "tasks"
+      ],
+      "tables_used_count": 2,
+      "warning_count": 2,
+      "warnings": [
+        "The LEFT JOIN means some task fields may be NULL for milestones without tasks",
+        "Soft-delete filters are applied to both milestones and tasks"
+      ],
+      "is_error": false,
+      "sql_length": 565
+    },
+    {
+      "query": "time logged by a user on tasks this week",
+      "query_index": 9,
+      "retrieval_k": 1,
+      "seed_tables": [
+        "task_time_logs"
+      ],
+      "seed_count": 1,
+      "seed_scores": {
+        "task_time_logs": 0.03279
+      },
+      "focus_table_count": 3,
+      "focus_tables": [
+        "task_time_logs",
+        "tasks",
+        "users"
+      ],
+      "join_path_count": 4,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 37.8,
+      "prompt_tokens": 848,
+      "completion_tokens": 509,
+      "total_tokens": 1357,
+      "finish_reason": "stop",
+      "agent_latency_ms": 9811.7,
+      "prompt_chars": 2972,
+      "tables_used_in_sql": [
+        "task_time_logs",
+        "tasks",
+        "users"
+      ],
+      "tables_used_count": 3,
+      "warning_count": 2,
+      "warnings": [
+        "Soft-delete filters applied to both users and tasks tables",
+        "The query assumes that the current week starts from 7 days ago from today"
+      ],
+      "is_error": false,
+      "sql_length": 1041
+    },
+    {
+      "query": "checklist items for a specific task",
+      "query_index": 10,
+      "retrieval_k": 1,
+      "seed_tables": [
+        "checklists"
+      ],
+      "seed_count": 1,
+      "seed_scores": {
+        "checklists": 0.03279
+      },
+      "focus_table_count": 4,
+      "focus_tables": [
+        "checklist_items",
+        "checklists",
+        "tasks",
+        "users"
+      ],
+      "join_path_count": 3,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 34.2,
+      "prompt_tokens": 902,
+      "completion_tokens": 187,
+      "total_tokens": 1089,
+      "finish_reason": "stop",
+      "agent_latency_ms": 3861.0,
+      "prompt_chars": 3240,
+      "tables_used_in_sql": [
+        "checklist_items",
+        "checklists"
+      ],
+      "tables_used_count": 2,
+      "warning_count": 2,
+      "warnings": [
+        "The query does not include soft-delete filters for checklists or checklist_items as these tables don't have deleted_at columns",
+        "The task_id parameter should be provided when executing the query"
+      ],
+      "is_error": false,
+      "sql_length": 201
+    },
+    {
+      "query": "custom field values set on tasks",
+      "query_index": 11,
+      "retrieval_k": 1,
+      "seed_tables": [
+        "custom_field_values"
+      ],
+      "seed_count": 1,
+      "seed_scores": {
+        "custom_field_values": 0.03279
+      },
+      "focus_table_count": 4,
+      "focus_tables": [
+        "custom_field_values",
+        "custom_fields",
+        "tasks",
+        "users"
+      ],
+      "join_path_count": 3,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 138.0,
+      "prompt_tokens": 944,
+      "completion_tokens": 213,
+      "total_tokens": 1157,
+      "finish_reason": "stop",
+      "agent_latency_ms": 4516.4,
+      "prompt_chars": 3451,
+      "tables_used_in_sql": [
+        "custom_field_values",
+        "custom_fields",
+        "tasks"
+      ],
+      "tables_used_count": 3,
+      "warning_count": 1,
+      "warnings": [
+        "Soft-delete filter applied on tasks (WHERE tasks.deleted_at IS NULL)"
+      ],
+      "is_error": false,
+      "sql_length": 321
+    },
+    {
+      "query": "documents in a project folder with version history",
+      "query_index": 12,
+      "retrieval_k": 2,
+      "seed_tables": [
+        "document_versions",
+        "documents"
+      ],
+      "seed_count": 2,
+      "seed_scores": {
+        "document_versions": 0.03252,
+        "documents": 0.03202
+      },
+      "focus_table_count": 7,
+      "focus_tables": [
+        "document_comments",
+        "document_tag_map",
+        "document_versions",
+        "documents",
+        "organizations",
+        "projects",
+        "users"
+      ],
+      "join_path_count": 10,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 25.9,
+      "prompt_tokens": 1270,
+      "completion_tokens": 464,
+      "total_tokens": 1734,
+      "finish_reason": "stop",
+      "agent_latency_ms": 9767.6,
+      "prompt_chars": 5074,
+      "tables_used_in_sql": [
+        "documents",
+        "projects",
+        "document_versions",
+        "users"
+      ],
+      "tables_used_count": 4,
+      "warning_count": 3,
+      "warnings": [
+        "Soft-delete filters applied to projects, documents, and users",
+        "LEFT JOIN used for version history to include documents without versions",
+        "Author information may be NULL if author was deleted"
+      ],
+      "is_error": false,
+      "sql_length": 1084
+    },
+    {
+      "query": "comments on a task ordered by creation date",
+      "query_index": 13,
+      "retrieval_k": 1,
+      "seed_tables": [
+        "task_comments"
+      ],
+      "seed_count": 1,
+      "seed_scores": {
+        "task_comments": 0.03227
+      },
+      "focus_table_count": 3,
+      "focus_tables": [
+        "task_comments",
+        "tasks",
+        "users"
+      ],
+      "join_path_count": 4,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 38.2,
+      "prompt_tokens": 856,
+      "completion_tokens": 229,
+      "total_tokens": 1085,
+      "finish_reason": "stop",
+      "agent_latency_ms": 4587.6,
+      "prompt_chars": 3084,
+      "tables_used_in_sql": [
+        "task_comments",
+        "users"
+      ],
+      "tables_used_count": 2,
+      "warning_count": 2,
+      "warnings": [
+        "Soft-delete filters applied to both task_comments and users tables",
+        "The task_id parameter should be provided when executing the query"
+      ],
+      "is_error": false,
+      "sql_length": 306
+    },
+    {
+      "query": "messages in a channel sent by a specific user",
+      "query_index": 14,
+      "retrieval_k": 3,
+      "seed_tables": [
+        "messages",
+        "channel_members",
+        "notification_preferences"
+      ],
+      "seed_count": 3,
+      "seed_scores": {
+        "messages": 0.03252,
+        "channel_members": 0.032,
+        "notification_preferences": 0.03101
+      },
+      "focus_table_count": 6,
+      "focus_tables": [
+        "channel_members",
+        "channels",
+        "message_reactions",
+        "messages",
+        "notification_preferences",
+        "users"
+      ],
+      "join_path_count": 8,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 38.6,
+      "prompt_tokens": 1032,
+      "completion_tokens": 209,
+      "total_tokens": 1241,
+      "finish_reason": "stop",
+      "agent_latency_ms": 4219.4,
+      "prompt_chars": 4021,
+      "tables_used_in_sql": [
+        "messages",
+        "users"
+      ],
+      "tables_used_count": 2,
+      "warning_count": 2,
+      "warnings": [
+        "Soft-delete filters applied to both messages and users tables",
+        "The query assumes the channel_id and user_id parameters will be provided"
+      ],
+      "is_error": false,
+      "sql_length": 287
+    },
+    {
+      "query": "unread notifications for a user",
+      "query_index": 15,
+      "retrieval_k": 2,
+      "seed_tables": [
+        "notifications",
+        "notification_preferences"
+      ],
+      "seed_count": 2,
+      "seed_scores": {
+        "notifications": 0.03279,
+        "notification_preferences": 0.032
+      },
+      "focus_table_count": 3,
+      "focus_tables": [
+        "notification_preferences",
+        "notifications",
+        "users"
+      ],
+      "join_path_count": 2,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 41.2,
+      "prompt_tokens": 689,
+      "completion_tokens": 196,
+      "total_tokens": 885,
+      "finish_reason": "stop",
+      "agent_latency_ms": 4197.8,
+      "prompt_chars": 2391,
+      "tables_used_in_sql": [
+        "notifications",
+        "users"
+      ],
+      "tables_used_count": 2,
+      "warning_count": 2,
+      "warnings": [
+        "Soft-delete filter applied on users table",
+        "The query requires a :user_id parameter to be provided"
+      ],
+      "is_error": false,
+      "sql_length": 220
+    },
+    {
+      "query": "invoices for an organization with line items and payments",
+      "query_index": 16,
+      "retrieval_k": 3,
+      "seed_tables": [
+        "invoice_line_items",
+        "invoices",
+        "payments"
+      ],
+      "seed_count": 3,
+      "seed_scores": {
+        "invoice_line_items": 0.03279,
+        "invoices": 0.032,
+        "payments": 0.0315
+      },
+      "focus_table_count": 5,
+      "focus_tables": [
+        "invoice_line_items",
+        "invoices",
+        "organizations",
+        "payments",
+        "subscriptions"
+      ],
+      "join_path_count": 6,
+      "has_auth_chain": false,
+      "retrieval_latency_ms": 12.3,
+      "prompt_tokens": 1168,
+      "completion_tokens": 652,
+      "total_tokens": 1820,
+      "finish_reason": "stop",
+      "agent_latency_ms": 12422.5,
+      "prompt_chars": 4399,
+      "tables_used_in_sql": [
+        "invoices",
+        "organizations",
+        "subscriptions",
+        "invoice_line_items",
+        "payments"
+      ],
+      "tables_used_count": 5,
+      "warning_count": 4,
+      "warnings": [
+        "Soft-delete filter applied to organizations table",
+        "LEFT JOIN used for subscriptions as it's optional in invoices",
+        "LEFT JOIN used for payments as it's optional in invoices",
+        "LEFT JOIN used for invoice_line_items as it's optional in invoices"
+      ],
+      "is_error": false,
+      "sql_length": 1508
+    },
+    {
+      "query": "active subscriptions and their plans with feature limits",
+      "query_index": 17,
+      "retrieval_k": 3,
+      "seed_tables": [
+        "subscriptions",
+        "org_plans",
+        "plans"
+      ],
+      "seed_count": 3,
+      "seed_scores": {
+        "subscriptions": 0.03279,
+        "org_plans": 0.032,
+        "plans": 0.032
+      },
+      "focus_table_count": 8,
+      "focus_tables": [
+        "coupon_redemptions",
+        "invoices",
+        "org_plans",
+        "organizations",
+        "plan_features",
+        "plans",
+        "subscription_items",
+        "subscriptions"
+      ],
+      "join_path_count": 8,
+      "has_auth_chain": false,
+      "retrieval_latency_ms": 13.3,
+      "prompt_tokens": 1362,
+      "completion_tokens": 341,
+      "total_tokens": 1703,
+      "finish_reason": "stop",
+      "agent_latency_ms": 7213.0,
+      "prompt_chars": 5289,
+      "tables_used_in_sql": [
+        "subscriptions",
+        "organizations",
+        "plans",
+        "plan_features"
+      ],
+      "tables_used_count": 4,
+      "warning_count": 2,
+      "warnings": [
+        "Soft-delete filter applied to organizations table",
+        "LEFT JOIN with plan_features may result in NULL values for feature_key and feature_value if no features are defined for a plan"
+      ],
+      "is_error": false,
+      "sql_length": 562
+    },
+    {
+      "query": "usage records for a subscription in the current billing period",
+      "query_index": 18,
+      "retrieval_k": 2,
+      "seed_tables": [
+        "usage_records",
+        "subscriptions"
+      ],
+      "seed_count": 2,
+      "seed_scores": {
+        "usage_records": 0.03279,
+        "subscriptions": 0.032
+      },
+      "focus_table_count": 7,
+      "focus_tables": [
+        "coupon_redemptions",
+        "invoices",
+        "organizations",
+        "plans",
+        "subscription_items",
+        "subscriptions",
+        "usage_records"
+      ],
+      "join_path_count": 7,
+      "has_auth_chain": false,
+      "retrieval_latency_ms": 22.1,
+      "prompt_tokens": 1291,
+      "completion_tokens": 278,
+      "total_tokens": 1569,
+      "finish_reason": "stop",
+      "agent_latency_ms": 5512.5,
+      "prompt_chars": 5001,
+      "tables_used_in_sql": [
+        "subscriptions",
+        "subscription_items",
+        "usage_records"
+      ],
+      "tables_used_count": 3,
+      "warning_count": 3,
+      "warnings": [
+        "Only includes active subscriptions that haven't been canceled",
+        "Excludes subscriptions where cancel_at_period_end is TRUE",
+        "Only shows usage records within the current billing period"
+      ],
+      "is_error": false,
+      "sql_length": 556
+    },
+    {
+      "query": "webhook deliveries that failed for a specific webhook",
+      "query_index": 19,
+      "retrieval_k": 1,
+      "seed_tables": [
+        "webhooks_deliveries"
+      ],
+      "seed_count": 1,
+      "seed_scores": {
+        "webhooks_deliveries": 0.03279
+      },
+      "focus_table_count": 2,
+      "focus_tables": [
+        "webhooks",
+        "webhooks_deliveries"
+      ],
+      "join_path_count": 1,
+      "has_auth_chain": false,
+      "retrieval_latency_ms": 28.6,
+      "prompt_tokens": 558,
+      "completion_tokens": 264,
+      "total_tokens": 822,
+      "finish_reason": "stop",
+      "agent_latency_ms": 5605.1,
+      "prompt_chars": 1807,
+      "tables_used_in_sql": [
+        "webhooks_deliveries",
+        "webhooks"
+      ],
+      "tables_used_count": 2,
+      "warning_count": 2,
+      "warnings": [
+        "The query assumes that any response_status >= 400 indicates a failure. This might not cover all failure cases if some failures don't set a response status.",
+        "The :webhook_id parameter should be replaced with the actual webhook ID value when executing the query."
+      ],
+      "is_error": false,
+      "sql_length": 211
+    },
+    {
+      "query": "OAuth tokens that are about to expire",
+      "query_index": 20,
+      "retrieval_k": 1,
+      "seed_tables": [
+        "oauth_app_tokens"
+      ],
+      "seed_count": 1,
+      "seed_scores": {
+        "oauth_app_tokens": 0.03279
+      },
+      "focus_table_count": 3,
+      "focus_tables": [
+        "oauth_app_tokens",
+        "oauth_apps",
+        "users"
+      ],
+      "join_path_count": 2,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 25.9,
+      "prompt_tokens": 770,
+      "completion_tokens": 312,
+      "total_tokens": 1082,
+      "finish_reason": "stop",
+      "agent_latency_ms": 6127.3,
+      "prompt_chars": 2665,
+      "tables_used_in_sql": [
+        "oauth_app_tokens",
+        "users",
+        "oauth_apps"
+      ],
+      "tables_used_count": 3,
+      "warning_count": 2,
+      "warnings": [
+        "Soft-delete filter applied to users table",
+        "Tokens expiring in exactly one day are included in the results"
+      ],
+      "is_error": false,
+      "sql_length": 445
+    },
+    {
+      "query": "feature usage statistics for an organization",
+      "query_index": 21,
+      "retrieval_k": 1,
+      "seed_tables": [
+        "feature_usage"
+      ],
+      "seed_count": 1,
+      "seed_scores": {
+        "feature_usage": 0.03227
+      },
+      "focus_table_count": 3,
+      "focus_tables": [
+        "feature_usage",
+        "organizations",
+        "users"
+      ],
+      "join_path_count": 2,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 24.5,
+      "prompt_tokens": 725,
+      "completion_tokens": 318,
+      "total_tokens": 1043,
+      "finish_reason": "stop",
+      "agent_latency_ms": 6630.9,
+      "prompt_chars": 2590,
+      "tables_used_in_sql": [
+        "organizations",
+        "feature_usage"
+      ],
+      "tables_used_count": 2,
+      "warning_count": 3,
+      "warnings": [
+        "The LEFT JOIN ensures organizations with no feature usage are still included in results (with NULL values for feature-related columns)",
+        "Soft-delete filter is applied to organizations table",
+        "User information is not included in this query to keep it focused on organization-level statistics"
+      ],
+      "is_error": false,
+      "sql_length": 466
+    },
+    {
+      "query": "report schedules and their last run status",
+      "query_index": 22,
+      "retrieval_k": 6,
+      "seed_tables": [
+        "sprints",
+        "workflow_logs",
+        "milestones",
+        "campaigns",
+        "tasks",
+        "subscriptions"
+      ],
+      "seed_count": 6,
+      "seed_scores": {
+        "sprints": 0.03202,
+        "workflow_logs": 0.03037,
+        "milestones": 0.03021,
+        "campaigns": 0.02976,
+        "tasks": 0.02862,
+        "subscriptions": 0.02844
+      },
+      "focus_table_count": 24,
+      "focus_tables": [
+        "campaign_assets",
+        "campaign_audiences",
+        "campaigns",
+        "checklists",
+        "coupon_redemptions",
+        "custom_field_values",
+        "invoices",
+        "leads",
+        "milestones",
+        "organizations",
+        "plans",
+        "projects",
+        "sprints",
+        "subscription_items",
+        "subscriptions",
+        "task_assignments",
+        "task_attachments",
+        "task_comments",
+        "task_dependencies",
+        "task_label_map",
+        "task_time_logs",
+        "tasks",
+        "users",
+        "workflow_logs"
+      ],
+      "join_path_count": 33,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 14.3,
+      "prompt_tokens": 3540,
+      "completion_tokens": 185,
+      "total_tokens": 3725,
+      "finish_reason": "stop",
+      "agent_latency_ms": 5021.2,
+      "prompt_chars": 14332,
+      "tables_used_in_sql": [
+        "workflow_logs"
+      ],
+      "tables_used_count": 1,
+      "warning_count": 0,
+      "warnings": [],
+      "is_error": false,
+      "sql_length": 268
+    },
+    {
+      "query": "open support tickets assigned to an agent with their messages",
+      "query_index": 23,
+      "retrieval_k": 1,
+      "seed_tables": [
+        "ticket_messages"
+      ],
+      "seed_count": 1,
+      "seed_scores": {
+        "ticket_messages": 0.03252
+      },
+      "focus_table_count": 3,
+      "focus_tables": [
+        "support_tickets",
+        "ticket_messages",
+        "users"
+      ],
+      "join_path_count": 3,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 24.5,
+      "prompt_tokens": 755,
+      "completion_tokens": 391,
+      "total_tokens": 1146,
+      "finish_reason": "stop",
+      "agent_latency_ms": 7871.4,
+      "prompt_chars": 2724,
+      "tables_used_in_sql": [
+        "support_tickets",
+        "ticket_messages",
+        "users"
+      ],
+      "tables_used_count": 3,
+      "warning_count": 3,
+      "warnings": [
+        "Soft-delete filter applied to users table",
+        "LEFT JOIN used for ticket_messages to include tickets without messages",
+        "LEFT JOIN used for message authors to include messages without authors"
+      ],
+      "is_error": false,
+      "sql_length": 673
+    },
+    {
+      "query": "support tickets tagged with a specific tag",
+      "query_index": 24,
+      "retrieval_k": 2,
+      "seed_tables": [
+        "ticket_tag_map",
+        "ticket_tags"
+      ],
+      "seed_count": 2,
+      "seed_scores": {
+        "ticket_tag_map": 0.03252,
+        "ticket_tags": 0.03227
+      },
+      "focus_table_count": 4,
+      "focus_tables": [
+        "support_tickets",
+        "ticket_tag_map",
+        "ticket_tags",
+        "users"
+      ],
+      "join_path_count": 2,
+      "has_auth_chain": true,
+      "retrieval_latency_ms": 20.2,
+      "prompt_tokens": 784,
+      "completion_tokens": 204,
+      "total_tokens": 988,
+      "finish_reason": "stop",
+      "agent_latency_ms": 4286.2,
+      "prompt_chars": 2790,
+      "tables_used_in_sql": [
+        "support_tickets",
+        "ticket_tag_map",
+        "ticket_tags"
+      ],
+      "tables_used_count": 3,
+      "warning_count": 2,
+      "warnings": [
+        "The query assumes that the tag name 'specific_tag' should be replaced with the actual tag name you are looking for.",
+        "The query filters out deleted tickets by checking the status column in the support_tickets table."
+      ],
+      "is_error": false,
+      "sql_length": 184
+    },
+    {
+      "query": "campaign performance with leads and their activities",
+      "query_index": 25,
+      "retrieval_k": 3,
+      "seed_tables": [
+        "leads",
+        "campaigns",
+        "campaign_assets"
+      ],
+      "seed_count": 3,
+      "seed_scores": {
+        "leads": 0.03279,
+        "campaigns": 0.032,
+        "campaign_assets": 0.03175
+      },
+      "focus_table_count": 6,
+      "focus_tables": [
+        "campaign_assets",
+        "campaign_audiences",
+        "campaigns",
+        "lead_activities",
+        "leads",
+        "organizations"
+      ],
+      "join_path_count": 6,
+      "has_auth_chain": false,
+      "retrieval_latency_ms": 16.1,
+      "prompt_tokens": 1043,
+      "completion_tokens": 632,
+      "total_tokens": 1675,
+      "finish_reason": "stop",
+      "agent_latency_ms": 13393.4,
+      "prompt_chars": 3883,
+      "tables_used_in_sql": [
+        "campaigns",
+        "leads",
+        "lead_activities"
+      ],
+      "tables_used_count": 3,
+      "warning_count": 3,
+      "warnings": [
+        "The query uses LEFT JOINs which may include NULL values for campaigns with no leads or activities",
+        "Only active campaigns that haven't ended are included in the results",
+        "The lead_activities table is joined without date filtering, so all historical activities are counted"
+      ],
+      "is_error": false,
+      "sql_length": 1400
+    }
+  ]
+}
